@@ -116,8 +116,9 @@ VBoxManage createhd --filename "${VM_HDD_FILE}" --size 40960
 VBoxManage storageattach "${VM}" --storagectl nvme0 --port 0 --type hdd --medium "${VM_HDD_FILE}"
 
 # Storage to be used as secondary disk
-#VBoxManage createhd --filename "${VM_HDD1_FILE}" --size 40960
-#VBoxManage storageattach "${VM}" --storagectl nvme0 --port 1 --type hdd --medium "${VM_HDD1_FILE}"
+#VBoxManage storagectl "${VM}" --name nvme1 --add pcie --controller NVMe --portcount 1
+VBoxManage createhd --filename "${VM_HDD1_FILE}" --size 40960
+VBoxManage storageattach "${VM}" --storagectl nvme0 --port 1 --type hdd --medium "${VM_HDD1_FILE}"
 
 # Other stuff
 VBoxManage modifyvm "${VM}" --nic1 nat
