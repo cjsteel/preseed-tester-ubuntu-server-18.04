@@ -19,7 +19,11 @@ Linux system with Virtualbox for install testing.
 /usr/bin/sha1sum
 ```
 
+## nvme drives
 
+For nvme drive you will want to execute **build-and-run-dual-nvme-drives**
+
+For other drives use **build-and-run**
 
 ## Encrypted User Passwords
 
