@@ -12,6 +12,15 @@ Runs a custom preseed file against a VirtualBox VM in order to test an automated
 
 Linux system with Virtualbox for install testing.
 
+```shell
+/usr/bin/vboxmanage
+/usr/bin/xorriso
+/usr/bin/7z
+/usr/bin/sha1sum
+```
+
+
+
 ## Encrypted User Passwords
 
 This does not show the password on the process list. For more options see openssl passwd
