@@ -18,7 +18,13 @@ Preseed files for Ubuntu 18.04 Server and Workstation are included in the `prese
 
 #### User configuration
 
-The included preseed files' with create a user: **julie** with an encrypted password: **mypassword**.
+The included preseed files' with create a user: **julie** with an encrypted password: **mypassword**. Don't forget to ecrypt any password you change or it will not work
+
+```shell
+openssl passwd -6 -salt xyz mypassword
+```
+
+
 
 #### Additional customizations to OS
 
