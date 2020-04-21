@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+set -e
+
+source functions.sh
+
+# Read configuration variable file if it is present
+[[ -r "./settings.conf" ]] && . ./settings.conf
+
+if [[ ! -f ./iso/netinstall-18.04.2-server-i386.iso ]]; then
+    shout "Downloading netinstall iso"
+    pushd ./iso/
+    wget -O netinstall-18.04.2-server-i386.iso \
+        https://mirrors.edge.kernel.org/ubuntu/dists/bionic/main/installer-i386/current/images/netboot/mini.iso
+    popd
+fi
+
+# NOTE: linux-modules-extra version must match kernel version in the netinstall iso
+if [[ ! -f ./iso/linux-modules-extra-4.15.0-20-generic_4.15.0-20.21_i386.deb ]]; then
+    shout "Downloading linux-modules-extra"
+    pushd ./iso/
+    wget http://mirrors.kernel.org/ubuntu/pool/main/l/linux/linux-modules-extra-4.15.0-20-generic_4.15.0-20.21_i386.deb
+    popd
+fi
+
+UNIQ=`date | sha1sum | cut -c 1-7`
+ISO=`find ./iso/netinstall* | head -n1`
+
+VMS_ROOT="${HOME}/VirtualBox VMs"
+VM="Ubuntu-`echo ${ISO} | cut -d "-" -f 2-3`-${UNIQ}"
+VM_HDD="${VMS_ROOT}/${VM}/${VM}"
+VM_HDD_FILE="${VM_HDD}.vdi"
+VM_HDD1_FILE="${VM_HDD}1.vdi"
+
+shout "Setting up"
+
+# Some dependency checks
+directory_exists "${VMS_ROOT}" "Cannot find VirtualBox VM directory ${VMS_ROOT}"
+file_exists "${ISO}" "Cannot find iso ${ISO}"
+is_runnable "vboxmanage" "Cannot find/run vboxmanage"
+is_runnable "xorriso" "Cannot find/run xorriso"
+is_runnable "7z" "Cannot find/run 7z"
+is_runnable "sha1sum" "Cannot find/run sha1sum"
+
+# Remove previously built ISOs
+rm -f *.iso
+# Cleanup if previous job failed / quit early
+rm -rf ./tmp
+rm -rf ./initramfs
+rm -f ./initramfs.fakeroot
+
+mkdir -p ./tmp
+mkdir -p ./initramfs
+
+shout "Extracting ${ISO}"
+
+7z x -o"./tmp/" ${ISO}
+
+pushd ./initramfs
+
+zcat ../tmp/initrd.gz | fakeroot -s ../initramfs.fakeroot cpio -i
+
+mkdir -p seed
+
+cp ../custom.cfg ./seed/
+
+if [[ -f ../proxy.cfg ]]; then
+    cp ../proxy.cfg ./seed/proxy.cfg
+else
+    cp ../proxy.cfg.sample ./seed/proxy.cfg
+fi
+
+# Include extra modules non-free modules for network.
+#ar p ../iso/linux-modules-extra-4.15.0-20-generic_4.15.0-20.21_i386.deb data.tar.xz | tar xJ
+
+find | fakeroot -i ../initramfs.fakeroot cpio -o -H newc | gzip -c > ../tmp/initrd.gz
+
+popd
+
+shout "Copying configuration"
+
+cp -f ./isolinux.cfg ./tmp/isolinux.cfg
+chmod 0755 ./tmp/boot/grub/grub.cfg
+cp -f ./grub.cfg ./tmp/boot/grub/grub.cfg
+
+shout "Building custom iso"
+
+xorriso -as mkisofs \
+        -b isolinux.bin \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        -eltorito-alt-boot \
+        -e boot/grub/efi.img \
+        -no-emul-boot \
+        -isohybrid-gpt-basdat \
+        -o ./${VM}-unattended.iso \
+        ./tmp
+
+shout "Cleanup"
+
+shout "Booting VM to start install"
+
+VBoxManage -v &> /dev/null || { echo "ERROR: VBoxManage not in path!"; exit 1; }
+VBoxManage createvm --name "${VM}" --register
+VBoxManage modifyvm "${VM}" --ostype Ubuntu_32 --memory 8192 --vram 64 --rtcuseutc on --ioapic on \
+           --clipboard bidirectional --cpus 2 --firmware efi64
+
+# ISO image to boot
+VBoxManage storagectl "${VM}" --name ide0 --add ide
+VBoxManage storageattach "${VM}" --storagectl ide0 --device 0 --port 0 --type dvddrive --medium ./${VM}-unattended.iso
+
+# Storage to be used as primary disk
+VBoxManage storagectl "${VM}" --name nvme0 --add pcie --controller NVMe --portcount 2
+VBoxManage createhd --filename "${VM_HDD_FILE}" --size 40960
+VBoxManage storageattach "${VM}" --storagectl nvme0 --port 0 --type hdd --medium "${VM_HDD_FILE}"
+
+# Storage to be used as secondary disk
+#VBoxManage storagectl "${VM}" --name nvme1 --add pcie --controller NVMe --portcount 1
+#VBoxManage createhd --filename "${VM_HDD1_FILE}" --size 40960
+#VBoxManage storageattach "${VM}" --storagectl nvme0 --port 1 --type hdd --medium "${VM_HDD1_FILE}"
+
+# Other stuff
+VBoxManage modifyvm "${VM}" --nic1 nat
+VBoxManage startvm --type=gui "${VM}"
+
+# Wait until we're done with it
+wait_vm_quit ${VM}
+
+echo -n "Remove the ${VM} VM?"
+read answer
+
+if [[ "$answer" != "${answer#[Yy]}" ]]; then
+    VBoxManage unregistervm "$VM" --delete
+fi

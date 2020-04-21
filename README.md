@@ -24,8 +24,6 @@ The included preseed files' with create a user: **julie** with an encrypted pass
 openssl passwd -6 -salt xyz mypassword
 ```
 
-
-
 #### Additional customizations to OS
 
 Near the end of each preseed file additional customizations to the target OS can be made. You might want to keep the final command to shut the system down after the installation is completed until you are certain that your installation process is successful in installing, configuring and securing your system.
@@ -105,6 +103,12 @@ Runs the custom.cfg preseed file against a VirtualBox VM in order to test an aut
 * Linux and some ISO utilities
 
 * VirtualBox if you want to test your image
+
+```shell
+sudo apt install xorriso
+sudo apt-get install p7zip-full
+which sha1sum # comes with many distros
+```
 
 ```shell
 /usr/bin/vboxmanage
